@@ -1,0 +1,25 @@
+body {
+  height: 100%;
+}
+
+.break-word {
+  overflow-wrap: break-word;  
+  word-wrap: break-word; 
+  word-break: break-word;
+}
+
+.fill-all-heigth {
+  height: 100vh;
+}
+
+.all-center {
+  justify-content: center;
+  align-items: center;
+}
+
+.all-center-column {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+

@@ -1,0 +1,5 @@
+*.sqlite*
+
+# Env
+.env
+.env*.local

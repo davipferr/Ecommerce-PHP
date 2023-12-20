@@ -1,0 +1,19 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "include": ["env.d.ts", "src/**/*", "src/**/*.vue", "api/**/*.ts"],
+  "exclude": ["src/**/__tests__/*", "node_modules"],
+  "compilerOptions": {
+    "composite": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@api/*": ["./api/*"],
+      "@c/*": ["./src/components/*"],
+      "@v/*": ["./src/views/*"],
+      "@s/*": ["./store/*"],
+      "@u/*": ["./utils/*"],
+      "@t/*": ["./types/*"],
+    },
+    "allowImportingTsExtensions": true,
+  },
+}
