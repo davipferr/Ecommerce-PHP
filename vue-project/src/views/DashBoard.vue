@@ -4,7 +4,7 @@ import api from '@u/api';
 import { useRoute, useRouter } from 'vue-router';
 import { onBeforeMount } from 'vue';
 import { ref } from 'vue';
-import { ResponseGetStoreById } from '@t/store.ts';
+import type { ResponseGetStoreById }  from '@t/ResponseGetStoreById.ts';
 
 
 const route = useRoute();
