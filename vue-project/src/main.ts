@@ -24,10 +24,28 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
 import 
 {
-  faXmark
+  faXmark,
+  faEye,
+  faEyeSlash,
 } from '@fortawesome/free-solid-svg-icons';
 
-library.add(faXmark)
+import
+{
+  faGoogle,
+  faFacebook,
+  faTwitter,
+  faGithub,
+} from '@fortawesome/free-brands-svg-icons';
+
+library.add(
+  faXmark, 
+  faGoogle, 
+  faFacebook,
+  faTwitter,
+  faGithub,
+  faEye,
+  faEyeSlash,
+);
 
 createApp(App)
   .use(vuetify)
