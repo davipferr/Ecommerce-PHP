@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\AuthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,8 +28,10 @@ Route::prefix('store')->group(function () {
 
 Route::prefix('client')->group(function () {
     Route::post('/register', [ClientController::class, 'registerClient']);
+    Route::get('/get-by-firebase/{email}/{access_token}', [ClientController::class, 'getClientByFirebase']);
+    Route::post('/add-refresh-token-expiration', [ClientController::class, 'login']);
 });
 
-Route::prefix('teste')->group(function () {
-    Route::get('/get', [ClientController::class, 'getClients']);
+Route::prefix('auth')->group(function () {
+    Route::post('/refresh-access-token', [AuthController::class, 'refreshAccessToken']);
 });
