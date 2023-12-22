@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { singInUser } from '@api/auth/firebase/credentialAuth';
+import { getClientByFireBase, addRefereshTokenExpiration } from '@br/client.ts';
 
 import { useRouter } from 'vue-router';
-import api from '@u/api';
-import { formatDate } from '@u/formatDate';
 const router = useRouter();
 
 const email = ref('2525@gmail.com');
@@ -21,26 +20,14 @@ const getClient = async () => {
     return console.log('Usário não existe');
   }
 
-  const getClientByFireBase = await api({
-    url: `/client/get-by-firebase/
-    ${singInClientFireBase?.email}/
-    ${singInClientFireBase?.stsTokenManager?.accessToken.substring(0, 30)}`.replace(/\s+/g, ''),
+  const response = await getClientByFireBase({
+    email: singInClientFireBase?.email,
+    access_token: singInClientFireBase?.stsTokenManager?.accessToken.subString(0,30),
   });
 
-  console.log('getClientByFireBase', getClientByFireBase);
+  console.log('getClientByFireBase', response);
 
-  return getClientByFireBase;
-}
-
-const addRefereshTokenExpiration = async (id: number, expiarationTime: number) => {
-  return api({
-    url: `/client/add-refresh-token-expiration`,
-    method: 'POST',
-    data: {
-      client_id: id,
-      refresh_token_expiration_time: formatDate(expiarationTime),
-    },
-  });
+  return response;
 }
 
 async function loginUser () {
@@ -48,7 +35,7 @@ async function loginUser () {
 
   //verifiar se os dados estão no LocalStorage
 
-  localStorage.clear();
+  localStorage.clear(); // **************************************
   const localStorageUser = JSON.parse(localStorage.getItem('user') || '{}');
   console.log('Storage', localStorageUser);
 
@@ -63,10 +50,10 @@ async function loginUser () {
     if (rememberMe.value && !getClientResponse.client_tokens.refresh_token_expiration_time) {
       console.log('create token sem store');
 
-      const response = await addRefereshTokenExpiration(
-          getClientResponse.client.id,
-          Date.now() + 1000 * 60,
-        );
+      const response = await addRefereshTokenExpiration({
+        clientId: getClientResponse.client.id,
+        expiarationTime: Date.now() + 1000 * 60,
+      });
 
       // show toast error
 
@@ -87,17 +74,21 @@ async function loginUser () {
     if (rememberMe.value && !localStorageUser.client_tokens.refresh_token_expiration_time) {
       console.log('create token com store');
 
-      const response = await addRefereshTokenExpiration(
-          localStorageUser.client.id,
-          Date.now() + 1000 * 60,
-        );
+      const response = await addRefereshTokenExpiration({
+        clientId: localStorageUser.client.id,
+        expiarationTime: Date.now() + 1000 * 60,
+      });
       
       console.log('response', response);
 
       if (response && response.data.refresh_token_expiration_time) {
+        console.log('Antes', localStorage.client_tokens.refresh_token_expiration_time);
+
         localStorage.client_tokens.refresh_token_expiration_time = response.data.refresh_token_expiration_time
 
         localStorage.setItem('user', JSON.stringify('user', localStorage.client_tokens));
+
+        console.log('Depois', localStorage.client_tokens.refresh_token_expiration_time);
       }
     }
 

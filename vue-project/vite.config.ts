@@ -17,6 +17,7 @@ export default defineConfig({
       '@s': fileURLToPath(new URL('./store', import.meta.url)),
       '@u': fileURLToPath(new URL('./utils', import.meta.url)),
       '@t': fileURLToPath(new URL('./types', import.meta.url)),
+      '@br': fileURLToPath(new URL('./utils/backendRoutes', import.meta.url)),
     }
   }
 })

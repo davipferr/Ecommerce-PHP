@@ -20,6 +20,7 @@
       "@s/*": ["./store/*"],
       "@u/*": ["./utils/*"],
       "@t/*": ["./types/*"],
+      "@br/*": ["./utils/backendRoutes/*"],
     },
     "allowImportingTsExtensions": true,
     "emitDeclarationOnly": true,
