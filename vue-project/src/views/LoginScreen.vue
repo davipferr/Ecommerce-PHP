@@ -3,33 +3,110 @@ import { ref } from 'vue';
 import { singInUser } from '@api/auth/firebase/credentialAuth';
 
 import { useRouter } from 'vue-router';
+import api from '@u/api';
+import { formatDate } from '@u/formatDate';
 const router = useRouter();
 
-const email = ref('');
-const password = ref('');
+const email = ref('2525@gmail.com');
+const password = ref('123456');
 const isLoading = ref(false);
+const rememberMe = ref(false);
+
+const getClient = async () => {
+  const singInClientFireBase = await singInUser(email.value, password.value);
+
+  console.log('singInClientFireBase', singInClientFireBase);
+
+  if(!singInClientFireBase || !singInClientFireBase.email || !singInClientFireBase.stsTokenManager?.accessToken) {
+    return console.log('Usário não existe');
+  }
+
+  const getClientByFireBase = await api({
+    url: `/client/get-by-firebase/
+    ${singInClientFireBase?.email}/
+    ${singInClientFireBase?.stsTokenManager?.accessToken.substring(0, 30)}`.replace(/\s+/g, ''),
+  });
+
+  console.log('getClientByFireBase', getClientByFireBase);
+
+  return getClientByFireBase;
+}
+
+const addRefereshTokenExpiration = async (id: number, expiarationTime: number) => {
+  return api({
+    url: `/client/add-refresh-token-expiration`,
+    method: 'POST',
+    data: {
+      client_id: id,
+      refresh_token_expiration_time: formatDate(expiarationTime),
+    },
+  });
+}
 
 async function loginUser () {
   isLoading.value = true;
 
   //verifiar se os dados estão no LocalStorage
 
-  const singInUserFireBase = ref(JSON.parse(localStorage.getItem('user') || '{}'));
-  console.log(singInUserFireBase.value);
+  localStorage.clear();
+  const localStorageUser = JSON.parse(localStorage.getItem('user') || '{}');
+  console.log('Storage', localStorageUser);
 
-  if (!singInUserFireBase.value) {
-    singInUserFireBase.value = await singInUser(email.value, password.value);
+  // verificar se o token expirou
 
-    localStorage.setItem('user', JSON.stringify(singInUserFireBase.value));
+  if (!localStorageUser || !localStorageUser.email || !localStorageUser.stsTokenManager.accessToken) {
+    
+    const getClientResponse = await getClient();
+    console.log('client', getClientResponse);
+    // verificar se o token expirou
+
+    if (rememberMe.value && !getClientResponse.client_tokens.refresh_token_expiration_time) {
+      console.log('create token sem store');
+
+      const response = await addRefereshTokenExpiration(
+          getClientResponse.client.id,
+          Date.now() + 1000 * 60,
+        );
+
+      // show toast error
+
+      console.log('response', response);
+
+      if (response && response.data.refresh_token_expiration_time) {
+        getClientResponse.client_tokens.refresh_token_expiration_time = response.data.refresh_token_expiration_time
+      }
+    }
+
+    if (getClientResponse?.client_tokens?.access_token_expiration_time < Date.now()) {
+      return console.log('Token inválido');
+    }
+
+    localStorage.setItem('user', JSON.stringify(getClientResponse));
+  } else {
+
+    if (rememberMe.value && !localStorageUser.client_tokens.refresh_token_expiration_time) {
+      console.log('create token com store');
+
+      const response = await addRefereshTokenExpiration(
+          localStorageUser.client.id,
+          Date.now() + 1000 * 60,
+        );
+      
+      console.log('response', response);
+
+      if (response && response.data.refresh_token_expiration_time) {
+        localStorage.client_tokens.refresh_token_expiration_time = response.data.refresh_token_expiration_time
+
+        localStorage.setItem('user', JSON.stringify('user', localStorage.client_tokens));
+      }
+    }
+
+    if (localStorageUser?.client_tokens?.access_token_expiration_time < Date.now()) {
+      return console.log('Token inválido');
+    }
   }
-  
+
   isLoading.value = false;
-
-  if(!singInUserFireBase?.value?.stsTokenManager?.accessToken) {
-    return console.log('Usário não existe');
-  }
-
-  // verificar se o accessToken é valido, se ofor in válido verificar a o refreseh token
 }
 
 const redirectToRegister = () => {
@@ -38,60 +115,109 @@ const redirectToRegister = () => {
 </script>
 
 <template>
-  <div class="mt-10">
-    <v-card class="mx-auto" width="420" height="500" elevated elevation="4">
-      <div class="my-5 mt-5 mb-8 text-center">
+  <div class="d-flex all-center fill-all-heigth">
+    <v-card width="400" height="500" elevation="4" class="container-1">
+      <div class="d-flex justify-center my-5">
         <v-card-title class="font-weight-black text-h5">Login</v-card-title>
       </div>
-      <div class="mx-10">
-        <v-text-field
-          label="E-mail" 
-          variant="outlined" 
-          density="compact"
-          clearable
-          v-model="email"
-        >
-        </v-text-field>
-        <v-text-field
-          label="senha" 
-          variant="outlined"
-          density="compact"
-          clearable
-          v-model="password"
-        >
-        </v-text-field>
-      </div>
-      <div class="d-flex justify-center">
-        <v-btn
-          class="rounded-pill w-50 mb-3"
-          variant="tonal"
-          @click="loginUser()"
-        >
-          Login
-        </v-btn>
+      <div>
+        <div class="d-flex justify-center flex-column mx-10">
+          <v-text-field
+            label="E-mail"
+            variant="outlined"
+            density="compact"
+            v-model="email"
+            :disabled="isLoading"
+          >
+          </v-text-field>
+          <v-text-field
+            label="senha"
+            variant="outlined"
+            density="compact"
+            v-model="password"
+            :disabled="isLoading"
+          >
+          </v-text-field>
+        </div>
+        <div class="d-flex justify-center my-2">
+          <v-btn
+            class="w-50"
+            rounded="xl"
+            elevation="4"
+            @click="loginUser()"
+            color="#000000"
+            :loading="isLoading"
+          >
+          <span class="font-weight-bold"> Login </span>
+          </v-btn>
+        </div>
       </div>
       <div class="px-16 text-center">
-        <span style="background-color: white; z-index: 2;" class="py-2 px-5 position-relative d-inline-block">ou entre com</span>
-        <hr style="top: -17px; z-index: 1;" class="position-relative m-0 p-0">
+        <span
+          style="
+            background-color: white;
+            z-index: 2;
+          "
+          class="py-2 px-5 position-relative d-inline-block"
+        >
+          ou entre com
+        </span>
+        <hr
+          style="
+            top: -19px;
+            z-index: 1;
+          "
+          class="position-relative m-0 p-0"
+        >
       </div>
       <div class="ma-5">
-        <div class="d-flex justify-center mb-3">
-          <v-btn class="w-50" variant="outlined">Google</v-btn>
+        <div
+          class="d-flex justify-center flex-wrap gap-1"
+        >
+          <v-btn
+            class="w-25"
+            :disabled="isLoading"
+          >
+            <font-awesome-icon :icon="['fab', 'google']" />
+          </v-btn>
+          <v-btn
+            class="w-25"
+            color="light-blue-darken-4"
+            :disabled="isLoading"
+          >
+            <font-awesome-icon :icon="['fab', 'facebook']" />
+          </v-btn>
+          <v-btn
+            class="w-25"
+            color="blue"
+            :disabled="isLoading"
+          >
+            <font-awesome-icon :icon="['fab', 'twitter']" />
+          </v-btn>
+          <v-btn
+            class="w-25"
+            color="black"
+            :disabled="isLoading"
+          >
+            <font-awesome-icon :icon="['fab', 'github']" />
+          </v-btn>
         </div>
-        <!-- <div class="d-flex justify-center mb-3">
-          <v-btn class="w-50" variant="outlined">Facebook</v-btn>
-        </div>
-        <div class="d-flex justify-center">
-          <v-btn class="w-50" variant="outlined">Twitter</v-btn>
-        </div> -->
       </div>
-      <div class="mt-10 text-center">
+      <div class="d-flex all-center">
         <code>
           Não possui uma conta? 
           <span 
             style="color:blue; cursor: pointer;"
             class="text-decoration-underline"
             @click="redirectToRegister()"
+            v-if="!isLoading"
+          >
+            Criar conta 
+          </span>
+          <span 
+            v-if="isLoading"
+            style="color:grey;"
+            class="text-decoration-underline"
           >
             Criar conta 
           </span> 
