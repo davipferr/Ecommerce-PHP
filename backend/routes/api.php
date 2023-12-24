@@ -29,9 +29,10 @@ Route::prefix('store')->group(function () {
 Route::prefix('client')->group(function () {
     Route::post('/register', [ClientController::class, 'registerClient']);
     Route::get('/get-by-firebase/{email}/{access_token}', [ClientController::class, 'getClientByFirebase']);
-    Route::post('/add-refresh-token-expiration', [ClientController::class, 'login']);
 });
 
 Route::prefix('auth')->group(function () {
     Route::post('/refresh-access-token', [AuthController::class, 'refreshAccessToken']);
+    Route::post('/create-access-token', [AuthController::class, 'createAccessToken']);
+    Route::post('/create-refresh-token', [AuthController::class, 'addRefreshToken']);
 });

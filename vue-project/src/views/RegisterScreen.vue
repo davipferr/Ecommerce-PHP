@@ -44,7 +44,6 @@ async function register(
           client_password: clientPassword,
           access_token: createUserFireBase?.stsTokenManager?.accessToken.substring(0, 30),
           access_token_expiration_time: formatDate(Date.now() + 1000 * 10),
-          refresh_token: createUserFireBase?.stsTokenManager?.refreshToken.substring(0, 30),
         },
       }
     );
