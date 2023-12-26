@@ -25,7 +25,7 @@ class CreateAccessTokenRequest extends FormRequest
     {
         return [
             'client_id' => 'required|integer',
-            'new_access_token' => 'requrired|string|max:255',
+            'new_access_token' => 'required|string|max:255',
         ];
     }
 }

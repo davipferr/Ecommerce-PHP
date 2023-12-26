@@ -14,9 +14,11 @@ class AuthController extends Controller
 
         $validateRefreshToken = ClientAccessToken::validateRefreshToken($request->client_id);
 
-        if ($validateRefreshToken) {
-            $newAccessTokenExpirationTime = ClientAccessToken::newAccessTokenExpirationTime();
+        if ($validateRefreshToken['newAccessToken']) {
+            return response()->json($validateRefreshToken);
         }
+
+        $newAccessTokenExpirationTime = ClientAccessToken::newExpirationTime();
 
         ClientAccessToken::addNewExpirationTime(
             $request->client_id,
@@ -39,7 +41,7 @@ class AuthController extends Controller
         return response()->json([
             'successMessage' => 'Token de acesso criado!',
             'newAccessToken' => $new_token['newAccessToken'],
-            'newExpirationTime'=> $$new_token['newExpirationTime'],
+            'newExpirationTime'=> $new_token['newExpirationTime'],
         ]);
     }
 

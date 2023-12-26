@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ClientAccessToken extends Model
 {
@@ -29,7 +28,11 @@ class ClientAccessToken extends Model
                                         ->select('refresh_token_expiration_time')
                                         ->first();
 
-        if (!$refreshToken || $refreshToken < date('Y-m-d H:i:s', strtotime('-3 hour'))) {
+        if (!$refreshToken->refresh_token_expiration_time || $refreshToken->refresh_token_expiration_time < date('Y-m-d H:i:s', strtotime('-3 hour'))) {
+
+            $access_token = ClientAccessToken::where('client_id', $client_id)
+                                        ->select('access_token')
+                                        ->first();
 
             $deleteClientTokens = ClientAccessToken::where('client_id', $client_id)
                                                     ->first()
@@ -41,10 +44,13 @@ class ClientAccessToken extends Model
                 ], 500);
             }
 
-            return response()->json([
-                'message' => 'Token de acesso expirou. Faça login novamente',
-                'tokensDeleted' => true,
-            ], 401);
+            $new_token = ClientAccessToken::createAccessToken($client_id, $access_token->access_token);
+
+            return [
+                'successMessage' => 'Token de acesso criado!',
+                'newAccessToken' => $new_token['newAccessToken'],
+                'newExpirationTime'=> $new_token['newExpirationTime'],
+            ];
         }
 
         return true;
@@ -56,9 +62,9 @@ class ClientAccessToken extends Model
         return $newExpirationTime;
     }
 
-    public static function addNewExpirationTime($client_id, $new_token) {
+    public static function addNewExpirationTime($client_id, $new_token_expiration) {
         $addNewExpirationTime = ClientAccessToken::where('client_id', $client_id)->update([
-            'access_token_expiration_time' => $new_token,
+            'access_token_expiration_time' => $new_token_expiration,
         ]);
 
         if (!$addNewExpirationTime) {
@@ -72,7 +78,7 @@ class ClientAccessToken extends Model
 
     public static function createAccessToken($client_id, $new_access_token) {
 
-        $new_expiration_time = ClientAccessToken::newExpirationTime(10, "second");
+        $new_expiration_time = ClientAccessToken::newExpirationTime(7, "day");
 
         $add_token = new ClientAccessToken([
             'client_id' => $client_id,
@@ -96,14 +102,14 @@ class ClientAccessToken extends Model
     }
 
     public static function createRefreshToken($client_id, $new_refresh_token) {
-        $new_expiration_time = ClientAccessToken::newExpirationTime(60, "second");
+        $new_expiration_time = ClientAccessToken::newExpirationTime(30, "day");
 
         $add_refresh_token = ClientAccessToken::where('client_id', $client_id)
-                                        ->update(
-                                            'refresh_token', $new_refresh_token,
-                                            'refresh_token_expiration_time', $new_expiration_time,
-                                        )
-                                        ->first();
+                                        ->first()
+                                        ->update([
+                                            'refresh_token' => $new_refresh_token,
+                                            'refresh_token_expiration_time' => $new_expiration_time,
+                                        ]);
 
         if (!$add_refresh_token) {
             return response()->json([

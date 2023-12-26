@@ -34,5 +34,5 @@ Route::prefix('client')->group(function () {
 Route::prefix('auth')->group(function () {
     Route::post('/refresh-access-token', [AuthController::class, 'refreshAccessToken']);
     Route::post('/create-access-token', [AuthController::class, 'createAccessToken']);
-    Route::post('/create-refresh-token', [AuthController::class, 'addRefreshToken']);
+    Route::post('/create-refresh-token', [AuthController::class, 'createRefreshToken']);
 });

@@ -22,7 +22,23 @@ export const createAccessToken = (data: CreateAccessToken) => {
     method: 'POST',
     data: {
       client_id: data.id,
-      access_token: data.token,
+      new_access_token: data.token,
+    }
+  })
+}
+
+type CreateRefreshToken = {
+  id: number
+  token: string
+}
+
+export const createRefreshToken = (data: CreateRefreshToken) => {
+  return api({
+    url: 'auth/create-refresh-token',
+    method: 'POST',
+    data: {
+      client_id: data.id,
+      new_refresh_token: data.token,
     }
   })
 }

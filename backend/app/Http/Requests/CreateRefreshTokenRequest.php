@@ -25,7 +25,7 @@ class CreateRefreshTokenRequest extends FormRequest
     {
         return [
             'client_id' => 'required|integer',
-            'new_refresh_token' => 'reuqired|string|max:255',
+            'new_refresh_token' => 'required|string|max:255',
         ];
     }
 }

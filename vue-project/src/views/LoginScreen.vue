@@ -1,146 +1,169 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { singInUser } from '@api/auth/firebase/credentialAuth';
-import { getClientByFireBase, addRefereshToken } from '@br/client.ts';
-import { refreshAccessToken, createAccessToken } from '@br/auth.ts';
-
-import type { GetClientByFireBase  } from '@t/client/GetClientByFireBase';
-
+import { getClientByFireBase } from '@br/client.ts';
+import { refreshAccessToken, createAccessToken, createRefreshToken } from '@br/auth.ts';
+import { formatDate } from '@u/formatDate';
 import { useRouter } from 'vue-router';
-import type api from '@u/api';
 const router = useRouter();
 
 const email = ref('2525@gmail.com');
 const password = ref('123456');
 const isLoading = ref(false);
-const rememberMe = ref(false);
+const rememberMe = ref(true);
 
 const getClient = async () => {
   const singInClientFireBase = await singInUser(email.value, password.value);
-
-  console.log('singInClientFireBase', singInClientFireBase);
 
   if(!singInClientFireBase || !singInClientFireBase.email || !singInClientFireBase.stsTokenManager?.accessToken) {
     return console.log('Usário não existe');
   }
 
-  const response = await getClientByFireBase({
+  const getClientResponse = await getClientByFireBase({
     email: singInClientFireBase?.email,
     access_token: singInClientFireBase?.stsTokenManager?.accessToken.substring(0,30),
   });
 
-  return response;
+  return {
+    getClientResponse: getClientResponse,
+    singInClientFireBase: singInClientFireBase,
+  };
 }
 
-async function loginUser () {
-  isLoading.value = true;
-
-  localStorage.clear(); // **************************************
+const getUserInStorage = async () => {
   const localStorageUser = JSON.parse(localStorage.getItem('user') || '{}');
-  console.log('Storage', localStorageUser);
 
-  if (!localStorageUser || !localStorageUser.email || !localStorageUser.client_tokens.accessToken) {
+  return localStorageUser
+}
+
+const loginUser = async () => {
+  isLoading.value = true;
+  
+  let localStorageUser = await getUserInStorage();
+
+  if (!localStorageUser || !localStorageUser?.client?.email || !localStorageUser?.clientTokens?.access_token) {
     
-    const getClientResponse = await getClient();
-    console.log('client', getClientResponse);
+    let {getClientResponse, singInClientFireBase} = await getClient();
 
-    //verificar se access_token é valido
-    if (getClientResponse?.client_tokens?.access_token_expiration_time < Date.now()) {
+    if (getClientResponse?.data?.clientTokens?.access_token_expiration_time < formatDate(Date.now())) {
 
       const response = await refreshAccessToken(
-        getClientResponse.client.id,
+        getClientResponse.data.client.id,
       );
 
-      if (response.status === 500) {
+      if (response?.response?.status === 500) {
+        isLoading.value = false;
+
         console.log('Não foi possível fazer login. Tente novamente mais tarde!');
+
+        return
       } else if (response.data.newAccessTokenExpirationTime) {
-        getClientResponse.client_tokens.access_token_expiration_time = response.data.newAccessTokenExpirationTime
+        getClientResponse.data.clientTokens.access_token_expiration_time = response.data.newAccessTokenExpirationTime;
       } else {
-        //tokens deletados
 
-        const newAccessToken = await createAccessToken({
-          id: getClientResponse.client.id,
-          token: getClientResponse.client_tokens.access_token,
-        });
+        getClientResponse.data.clientTokens = {};
 
-       if (newAccessToken.status === 500) {
-        console.log('Não foi possível fazer login. Tente novamente mais tarde!');
-       } else {
-          getClientResponse.client_tokens.access_token = newAccessToken.data.newAccessToken;
-          getClientResponse.client_tokens.access_token_expiration_time = newAccessToken.data.newExpirationTime;
-       }
+        getClientResponse.data.clientTokens.access_token = response.data.newAccessToken;
+        getClientResponse.data.clientTokens.access_token_expiration_time = response.data.newExpirationTime;
       }
 
-    }
-    
-    //criar refresh_token
-    if (rememberMe.value && !getClientResponse.client_tokens.refresh_token_expiration_time) {
+    } else if(!getClientResponse?.data?.clientTokens) {
 
-      const newRefreshToken = await addRefereshToken({
-        clientId: getClientResponse.client.id,
-        refreshToken:  getClientResponse.client_tokens.refresh_token.substring(0, 30),
+      const newAccessToken = await createAccessToken({
+        id: getClientResponse.data.client.id,
+        token: singInClientFireBase?.stsTokenManager?.accessToken.substring(0,30),
       });
 
-      console.log('response', newRefreshToken);
+       if (newAccessToken?.response?.status === 500) {
+        isLoading.value = false;
 
-      if (newRefreshToken.status === 500) {
         console.log('Não foi possível fazer login. Tente novamente mais tarde!');
+
+        return
+       } else {
+
+        getClientResponse.data.clientTokens = {};
+ 
+        getClientResponse.data.clientTokens.access_token = newAccessToken.data.newAccessToken;
+        getClientResponse.data.clientTokens.access_token_expiration_time = newAccessToken.data.newExpirationTime;
+       }
+    }
+ 
+    if (rememberMe.value && !getClientResponse.data.clientTokens.refresh_token) {
+
+      const newRefreshToken = await createRefreshToken({
+        id: getClientResponse.data.client.id,
+        token: singInClientFireBase.stsTokenManager.refreshToken.substring(0, 30),
+      });
+
+      if (newRefreshToken?.response?.status === 500) {
+        isLoading.value = false;
+
+        console.log('Não foi possível fazer login. Tente novamente mais tarde!');
+
+        return
       } else {
-        getClientResponse.client_tokens.refresh_token = newRefreshToken.data.newRefreshToken;
-        getClientResponse.client_tokens.refresh_token_expiration_time = newRefreshToken.data.newExpirationTime;
+        getClientResponse.data.clientTokens.refresh_token = newRefreshToken.data.newRefreshToken;
+        getClientResponse.data.clientTokens.refresh_token_expiration_time = newRefreshToken.data.newExpirationTime;
       }
     }
 
-    localStorage.setItem('user', JSON.stringify(getClientResponse));
-  } else {
+    const {client, clientTokens} = getClientResponse.data;
 
-    if (localStorageUser?.client_tokens?.access_token_expiration_time < Date.now()) {
+    localStorage.setItem('user', JSON.stringify({client, clientTokens}));
+  } else {
+  
+    if (localStorageUser?.clientTokens?.access_token_expiration_time < formatDate(Date.now())) {
 
       const response = await refreshAccessToken(
         localStorageUser.client.id,
       );
 
-      if (response.status === 500) {
+      if (response?.response?.status === 500) {
+        isLoading.value = false;
+
         console.log('Não foi possível fazer login. Tente novamente mais tarde!');
+
+        return
       } else if (response.data.newAccessTokenExpirationTime) {
-        localStorageUser.client_tokens.access_token_expiration_time = response.data.newAccessTokenExpirationTime
+
+        localStorageUser.clientTokens.access_token_expiration_time = response.data.newAccessTokenExpirationTime
 
         localStorage.setItem('user', JSON.stringify(localStorageUser));
       } else {
-        //tokens deletados
 
-        const newAccessToken = await createAccessToken({
-          id: localStorageUser.client.id,
-          token: localStorageUser.client_tokens.access_token,
-        });
+        localStorageUser.clientTokens = {};
 
-        if (newAccessToken.status === 500) {
-          console.log('Não foi possível fazer login. Tente novamente mais tarde!');
-        } else {
-          localStorageUser.client_tokens.access_token = newAccessToken.data.newAccessToken;
-          localStorageUser.client_tokens.access_token_expiration_time = newAccessToken.data.newExpirationTime;
+        localStorageUser.clientTokens.access_token = response.data.newAccessToken;
+        localStorageUser.clientTokens.access_token_expiration_time = response.data.newExpirationTime;
 
-          localStorage.setItem('user', JSON.stringify(localStorageUser));
-        }
+        const {clientTokens} = localStorageUser
+
+        localStorage.setItem('user', JSON.stringify(clientTokens));
       }
     }
 
-    if (rememberMe.value && !localStorageUser.client_tokens.refresh_token_expiration_time) {
+    if (rememberMe.value && !localStorageUser?.clientTokens?.refresh_token_expiration_time) {
 
-      const newRefreshToken = await addRefereshToken({
-        clientId: localStorageUser.client.id,
-        refreshToken:  localStorageUser.client_tokens.refresh_token.substring(0, 30),
+      const newRefreshToken = await createRefreshToken({
+        id: localStorageUser.client.id,
+        token: "REFRESH-TOKEN-JSON",
       });
 
-      console.log('response', newRefreshToken);
+      if (newRefreshToken?.response?.status === 500) {
+        isLoading.value = false;
 
-      if (newRefreshToken.status === 500) {
         console.log('Não foi possível fazer login. Tente novamente mais tarde!');
-      } else {
-        localStorageUser.client_tokens.refresh_token = newRefreshToken.data.newRefreshToken;
-        localStorageUser.client_tokens.refresh_token_expiration_time = newRefreshToken.data.newExpirationTime;
 
-        localStorage.setItem('user', JSON.stringify(localStorageUser));
+        return
+      } else {
+
+        localStorageUser.clientTokens.refresh_token = newRefreshToken.data.newRefreshToken;
+        localStorageUser.clientTokens.refresh_token_expiration_time = newRefreshToken.data.newExpirationTime;
+
+        const {clientTokens} = localStorageUser
+
+        localStorage.setItem('user', JSON.stringify(clientTokens));
       }
     }
   }
