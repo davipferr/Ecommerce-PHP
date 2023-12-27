@@ -22,35 +22,12 @@ class ClientAccessToken extends Model
         return $this->belongsTo(Client::class);
     }
 
-    public static function validateRefreshToken($client_id) {
+    public static function validateRefreshToken($refreshTokenExpirationTime) {
 
-        $refreshToken = ClientAccessToken::where('client_id', $client_id)
-                                        ->select('refresh_token_expiration_time')
-                                        ->first();
+        if (!$refreshTokenExpirationTime || $refreshTokenExpirationTime < date('Y-m-d H:i:s', strtotime('-3 hour'))) {
 
-        if (!$refreshToken->refresh_token_expiration_time || $refreshToken->refresh_token_expiration_time < date('Y-m-d H:i:s', strtotime('-3 hour'))) {
+            return false;
 
-            $access_token = ClientAccessToken::where('client_id', $client_id)
-                                        ->select('access_token')
-                                        ->first();
-
-            $deleteClientTokens = ClientAccessToken::where('client_id', $client_id)
-                                                    ->first()
-                                                    ->delete();
-
-            if (!$deleteClientTokens) {
-                return response()->json([
-                    'errorMessage' => 'Não foi posível excluir o token de acesso',
-                ], 500);
-            }
-
-            $new_token = ClientAccessToken::createAccessToken($client_id, $access_token->access_token);
-
-            return [
-                'successMessage' => 'Token de acesso criado!',
-                'newAccessToken' => $new_token['newAccessToken'],
-                'newExpirationTime'=> $new_token['newExpirationTime'],
-            ];
         }
 
         return true;
@@ -68,17 +45,13 @@ class ClientAccessToken extends Model
         ]);
 
         if (!$addNewExpirationTime) {
-            return response()->json([
-                'errorMessage' => 'Não foi possível atualizar o token de acesso'
-            ], 500);
+            return false;
         }
 
         return true;
     }
 
-    public static function createAccessToken($client_id, $new_access_token) {
-
-        $new_expiration_time = ClientAccessToken::newExpirationTime(7, "day");
+    public static function createAccessToken($client_id, $new_access_token, $new_expiration_time) {
 
         $add_token = new ClientAccessToken([
             'client_id' => $client_id,
@@ -89,20 +62,13 @@ class ClientAccessToken extends Model
         $add_token->save();
 
         if (!$add_token) {
-            return response()->json([
-                'errorMessage' => 'Não foi possível salvar o novo token de acesso.
-                Tente novamente mais tarde',
-            ], 500);
+            return false;
         }
 
-        return [
-            'newAccessToken' => $new_access_token,
-            'newExpirationTime'=> $new_expiration_time,
-        ];
+        return true;
     }
 
-    public static function createRefreshToken($client_id, $new_refresh_token) {
-        $new_expiration_time = ClientAccessToken::newExpirationTime(30, "day");
+    public static function addRefreshToken($client_id, $new_refresh_token, $new_expiration_time) {
 
         $add_refresh_token = ClientAccessToken::where('client_id', $client_id)
                                         ->first()
@@ -112,15 +78,20 @@ class ClientAccessToken extends Model
                                         ]);
 
         if (!$add_refresh_token) {
-            return response()->json([
-                'errorMessage' => 'Não foi possível salvar o token de lembrança.
-                Tente novamente mais tarde',
-            ], 500);
+            return false;
         }
 
-        return [
-            'newRefreshToken' => $new_refresh_token,
-            'newExpirationTime'=> $new_expiration_time,
-        ];
+        return true;
+    }
+
+    public static function deleteAllClientTokens($client_id) {
+        $delete_all_tokens = ClientAccessToken::where('client_id', $client_id)
+                                    ->first()
+                                    ->delete();
+        if (!$delete_all_tokens) {
+            return false;
+        }
+
+        return true;
     }
 }

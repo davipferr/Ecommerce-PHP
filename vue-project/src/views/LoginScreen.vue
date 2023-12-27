@@ -2,173 +2,187 @@
 import { ref } from 'vue';
 import { singInUser } from '@api/auth/firebase/credentialAuth';
 import { getClientByFireBase } from '@br/client.ts';
-import { refreshAccessToken, createAccessToken, createRefreshToken } from '@br/auth.ts';
+import
+{
+  validateRefreshToken,
+  refreshAccessToken,
+  createAccessToken,
+  addRefreshToken,
+  deleteAllClientTokens,
+} from '@br/auth.ts';
 import { formatDate } from '@u/formatDate';
+import
+{
+  getAuthUser,
+  addUserInStorage,
+} from '@s/User.ts';
 import { useRouter } from 'vue-router';
 const router = useRouter();
 
-const email = ref('2525@gmail.com');
-const password = ref('123456');
+const email = ref('');
+const password = ref('');
+const showPassword = ref(false);
 const isLoading = ref(false);
-const rememberMe = ref(true);
+const rememberMe = ref(false);
 
-const getClient = async () => {
-  const singInClientFireBase = await singInUser(email.value, password.value);
+const auth = async () => {
+  const response = await getAuthUser();
 
-  if(!singInClientFireBase || !singInClientFireBase.email || !singInClientFireBase.stsTokenManager?.accessToken) {
-    return console.log('Usário não existe');
+  if (response) {
+    // mensagem usuário já autenticado
+    router.push({ path: '/' });
   }
 
-  const getClientResponse = await getClientByFireBase({
-    email: singInClientFireBase?.email,
-    access_token: singInClientFireBase?.stsTokenManager?.accessToken.substring(0,30),
-  });
-
-  return {
-    getClientResponse: getClientResponse,
-    singInClientFireBase: singInClientFireBase,
-  };
 }
 
-const getUserInStorage = async () => {
-  const localStorageUser = JSON.parse(localStorage.getItem('user') || '{}');
+/* auth(); */
 
-  return localStorageUser
+const getClientByEmail = async (email: string, password: string) => {
+  const singInClientFireBase = await singInUser(email, password);
+
+  if (!singInClientFireBase || !singInClientFireBase.email || !singInClientFireBase.stsTokenManager?.accessToken) {
+    isLoading.value = false;
+
+    console.log('Usário não existe');
+
+    return 
+  }
+
+  const clientData = await getClientByFireBase(
+    singInClientFireBase?.email,
+  );
+
+  return clientData
+
+}
+
+const isRefreshTokenValid = async (expirationTime: any) => {
+  const response = await validateRefreshToken(expirationTime);
+
+  return response.data.refreshTokenIsValid
+}
+
+const newAccessTokenExpiration = async (clientResponse: any) => {
+  // validate antes
+  const response = await refreshAccessToken(
+    clientResponse.data.client.id,
+  );
+
+  if (response?.response?.status === 500) {
+    isLoading.value = false;
+
+    console.log('Não foi possível fazer login. Tente novamente mais tarde!');
+
+    return
+  } else if (response.data.newAccessTokenExpirationTime) {
+
+    return clientResponse.data.clientTokens.access_token_expiration_time = 
+    response.data.newAccessTokenExpirationTime;
+
+  } else {
+
+    clientResponse.data.clientTokens = {};
+
+    return clientResponse.data.clientTokens = {
+      access_token: response.data.newAccessToken,
+      access_token_expiration_time: response.data.newExpirationTime,
+    }
+  }
+}
+
+const createNewAccessToken = async (clientResponse: any) => {
+  const newAccessToken = await createAccessToken({
+    client_id: clientResponse.data.client.id,
+    new_acces_token: 'ACCESS-TOKEN-JTW',
+  });
+
+  if (newAccessToken?.response?.status === 500) {
+    isLoading.value = false;
+
+    console.log('Não foi possível fazer login. Tente novamente mais tarde!');
+
+    return
+  } else {
+    clientResponse.data.clientTokens = {};
+
+    clientResponse.data.clientTokens.access_token = newAccessToken.data.newAccessToken;
+    clientResponse.data.clientTokens.access_token_expiration_time = newAccessToken.data.newExpirationTime;
+  }
+}
+
+const addNewRefreshToken = async (clientResponse: any) => {
+  const newRefreshToken = await addRefreshToken({
+    client_id: clientResponse.data.client.id,
+    new_acces_token: 'REFRESH-TOKEN-JWT',
+  });
+
+  if (newRefreshToken?.response?.status === 500) {
+    isLoading.value = false;
+
+    console.log('Não foi possível fazer login. Tente novamente mais tarde!');
+
+    return
+  } else {
+    clientResponse.data.clientTokens.refresh_token = newRefreshToken.data.newRefreshToken;
+    clientResponse.data.clientTokens.refresh_token_expiration_time = newRefreshToken.data.newExpirationTime;
+  }
+}
+
+const deleteClientTokens = async (clientId: number) => {
+  const response = await deleteAllClientTokens(clientId);
+
+  if (response?.response?.status === 500) {
+    isLoading.value = false;
+
+    console.log('Não foi possível fazer login. Tente novamente mais tarde!');
+
+    return
+  }
 }
 
 const loginUser = async () => {
   isLoading.value = true;
-  
-  let localStorageUser = await getUserInStorage();
 
-  if (!localStorageUser || !localStorageUser?.client?.email || !localStorageUser?.clientTokens?.access_token) {
+  let clientData = await getClientByEmail(email.value, password.value);
+
+  if (clientData?.data?.clientTokens?.access_token_expiration_time <
+    formatDate(Date.now())) 
+  {
+
+    const refreshTokenIsValid = await isRefreshTokenValid(
+      clientData.data.clientTokens.refresh_token_expiration_time
+    );
+
+    if (!refreshTokenIsValid) {
+      await deleteClientTokens(clientData.data.client.id);
+
+      await createNewAccessToken(clientData);
+    } else {
+      await newAccessTokenExpiration(clientData);
+    }
+
+  } else if (!clientData?.data?.clientTokens) {
+
+    await createNewAccessToken(clientData);
     
-    let {getClientResponse, singInClientFireBase} = await getClient();
-
-    if (getClientResponse?.data?.clientTokens?.access_token_expiration_time < formatDate(Date.now())) {
-
-      const response = await refreshAccessToken(
-        getClientResponse.data.client.id,
-      );
-
-      if (response?.response?.status === 500) {
-        isLoading.value = false;
-
-        console.log('Não foi possível fazer login. Tente novamente mais tarde!');
-
-        return
-      } else if (response.data.newAccessTokenExpirationTime) {
-        getClientResponse.data.clientTokens.access_token_expiration_time = response.data.newAccessTokenExpirationTime;
-      } else {
-
-        getClientResponse.data.clientTokens = {};
-
-        getClientResponse.data.clientTokens.access_token = response.data.newAccessToken;
-        getClientResponse.data.clientTokens.access_token_expiration_time = response.data.newExpirationTime;
-      }
-
-    } else if(!getClientResponse?.data?.clientTokens) {
-
-      const newAccessToken = await createAccessToken({
-        id: getClientResponse.data.client.id,
-        token: singInClientFireBase?.stsTokenManager?.accessToken.substring(0,30),
-      });
-
-       if (newAccessToken?.response?.status === 500) {
-        isLoading.value = false;
-
-        console.log('Não foi possível fazer login. Tente novamente mais tarde!');
-
-        return
-       } else {
-
-        getClientResponse.data.clientTokens = {};
+  }
  
-        getClientResponse.data.clientTokens.access_token = newAccessToken.data.newAccessToken;
-        getClientResponse.data.clientTokens.access_token_expiration_time = newAccessToken.data.newExpirationTime;
-       }
-    }
- 
-    if (rememberMe.value && !getClientResponse.data.clientTokens.refresh_token) {
+  if (rememberMe.value && !clientData.data.clientTokens.refresh_token) {
 
-      const newRefreshToken = await createRefreshToken({
-        id: getClientResponse.data.client.id,
-        token: singInClientFireBase.stsTokenManager.refreshToken.substring(0, 30),
-      });
-
-      if (newRefreshToken?.response?.status === 500) {
-        isLoading.value = false;
-
-        console.log('Não foi possível fazer login. Tente novamente mais tarde!');
-
-        return
-      } else {
-        getClientResponse.data.clientTokens.refresh_token = newRefreshToken.data.newRefreshToken;
-        getClientResponse.data.clientTokens.refresh_token_expiration_time = newRefreshToken.data.newExpirationTime;
-      }
-    }
-
-    const {client, clientTokens} = getClientResponse.data;
-
-    localStorage.setItem('user', JSON.stringify({client, clientTokens}));
-  } else {
-  
-    if (localStorageUser?.clientTokens?.access_token_expiration_time < formatDate(Date.now())) {
-
-      const response = await refreshAccessToken(
-        localStorageUser.client.id,
-      );
-
-      if (response?.response?.status === 500) {
-        isLoading.value = false;
-
-        console.log('Não foi possível fazer login. Tente novamente mais tarde!');
-
-        return
-      } else if (response.data.newAccessTokenExpirationTime) {
-
-        localStorageUser.clientTokens.access_token_expiration_time = response.data.newAccessTokenExpirationTime
-
-        localStorage.setItem('user', JSON.stringify(localStorageUser));
-      } else {
-
-        localStorageUser.clientTokens = {};
-
-        localStorageUser.clientTokens.access_token = response.data.newAccessToken;
-        localStorageUser.clientTokens.access_token_expiration_time = response.data.newExpirationTime;
-
-        const {clientTokens} = localStorageUser
-
-        localStorage.setItem('user', JSON.stringify(clientTokens));
-      }
-    }
-
-    if (rememberMe.value && !localStorageUser?.clientTokens?.refresh_token_expiration_time) {
-
-      const newRefreshToken = await createRefreshToken({
-        id: localStorageUser.client.id,
-        token: "REFRESH-TOKEN-JSON",
-      });
-
-      if (newRefreshToken?.response?.status === 500) {
-        isLoading.value = false;
-
-        console.log('Não foi possível fazer login. Tente novamente mais tarde!');
-
-        return
-      } else {
-
-        localStorageUser.clientTokens.refresh_token = newRefreshToken.data.newRefreshToken;
-        localStorageUser.clientTokens.refresh_token_expiration_time = newRefreshToken.data.newExpirationTime;
-
-        const {clientTokens} = localStorageUser
-
-        localStorage.setItem('user', JSON.stringify(clientTokens));
-      }
-    }
+    await addNewRefreshToken(clientData);
+    
   }
 
+  const {client, clientTokens} = clientData.data;
+
+  addUserInStorage({
+    clientData: client, 
+    clientTokens,
+  });
+
   isLoading.value = false;
+
+  router.push({ path: '/' });
 }
 
 const redirectToRegister = () => {
@@ -178,28 +192,54 @@ const redirectToRegister = () => {
 
 <template>
   <div class="d-flex all-center fill-all-heigth">
-    <v-card width="400" height="500" elevation="4" class="container-1">
+    <v-card width="420" height="540" variant="outlined">
       <div class="d-flex justify-center my-5">
         <v-card-title class="font-weight-black text-h5">Login</v-card-title>
       </div>
       <div>
         <div class="d-flex justify-center flex-column mx-10">
-          <v-text-field
-            label="E-mail"
-            variant="outlined"
-            density="compact"
-            v-model="email"
+          <v-form>
+            <v-text-field
+              label="E-mail"
+              variant="outlined"
+              density="compact"
+              v-model="email"
+              :disabled="isLoading"
+              type="email"
+              autocomplete="username"
+            >
+            </v-text-field>
+            <v-text-field
+              label="senha"
+              variant="outlined"
+              density="compact"
+              v-model="password"
+              :disabled="isLoading"
+              hide-details
+              :type="showPassword ? 'text' : 'password'"
+              autocomplete="new-password"
+            >
+              <template v-slot:append-inner>
+                <div>
+                  <font-awesome-icon
+                    :icon="['fas', showPassword ? 'eye' : 'eye-slash' ]"
+                    style="color: #000000; cursor: pointer;"
+                    @click="showPassword = !showPassword"
+                  />
+                </div>
+              </template>
+            </v-text-field>
+          </v-form>
+        </div>
+        <div>
+          <v-checkbox
+            class="d-flex mx-9"
+            v-model="rememberMe"
+            color="primary"
+            label="Lembrar de mim"
             :disabled="isLoading"
           >
-          </v-text-field>
-          <v-text-field
-            label="senha"
-            variant="outlined"
-            density="compact"
-            v-model="password"
-            :disabled="isLoading"
-          >
-          </v-text-field>
+          </v-checkbox>
         </div>
         <div class="d-flex justify-center my-2">
           <v-btn
@@ -288,3 +328,10 @@ const redirectToRegister = () => {
     </v-card>
   </div>
 </template>
+
+<style scoped>
+.class-1 {
+ display: flex;
+ justify-content: center;
+}
+</style>

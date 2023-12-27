@@ -1,14 +1,9 @@
 import api from '@u/api';
 
 // [GET]
-type GetClientByFireBaseData = {
-  email: string
-  access_token: string
-}
-
-export const getClientByFireBase = (data: GetClientByFireBaseData) => {
+export const getClientByFireBase = (email: string) => {
   return api({
-    url: `/client/get-by-firebase/${data.email}/${data.access_token}`,
+    url: `/client/get-by-firebase/${email}`,
   });
 } 
 

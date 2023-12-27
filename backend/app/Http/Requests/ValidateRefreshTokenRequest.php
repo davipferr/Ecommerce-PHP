@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class RefreshAccessTokenRequest extends FormRequest
+class ValidateRefreshTokenRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -24,7 +24,7 @@ class RefreshAccessTokenRequest extends FormRequest
     public function rules()
     {
         return [
-            'client_id' => 'required|integer',
+            'refresh_token_expiration_time' => 'date|nullable',
         ];
     }
 }
