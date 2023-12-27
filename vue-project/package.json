@@ -27,6 +27,7 @@
     "vuetify": "^3.4.4"
   },
   "devDependencies": {
+    "@mdi/font": "^7.4.47",
     "@tsconfig/node18": "^18.2.0",
     "@typescript-eslint/eslint-plugin": "^6.13.2",
     "@typescript-eslint/parser": "^6.13.2",
